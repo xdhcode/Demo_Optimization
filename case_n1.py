@@ -134,7 +134,7 @@ class CASE(JST):
         info.columns=['best_one','best_eval']
         info.to_csv(self.record_path+'pop_best.csv',index=True)
         pd.DataFrame(self.eval_record).T.to_csv(self.record_path+'pop_eval_record.csv',index=True)
-        pd.DataFrame(self.nextpop1).to_csv(self.record_path+'pop_'+str(self.iter)+'.csv',index=True)
+        pd.DataFrame(self.nextpop).to_csv(self.record_path+'pop_'+str(self.iter)+'.csv',index=True)
         
     def load(self,file=''):#load population
         if file=='':
