@@ -1,4 +1,3 @@
-import math
 import os
 import time
 import json
@@ -8,14 +7,23 @@ import pandas as pd
 import multiprocessing as multi
 import matplotlib.pyplot as plt
 from json_tool import JST
-from cmaes import CMA,SepCMA
 
-class OPT(JST):
+from pymoo.optimize import minimize
+from pymoo.algorithms.soo.nonconvex.nelder import NelderMead
+from pymoo.algorithms.soo.nonconvex.g3pcx import G3PCX
+from pymoo.algorithms.soo.nonconvex.cmaes import CMAES
+from pymoo.algorithms.soo.nonconvex.pso import PSO
+from pymoo.algorithms.soo.nonconvex.ga import GA
+from pymoo.algorithms.soo.nonconvex.de import DE
+from pymoo.core.problem import Problem
+
+class OPT(Problem,JST):
     def __init__(self):
         super().__init__()
+        JST.__init__(self)
         np.random.seed(2023)
 
-    #hydraulic simulation
+     #hydraulic simulation
     def set_path(self,path):#network path
         self.main_path=path
         self.csv_path=self.main_path+'netcsv_1\\'
@@ -26,7 +34,7 @@ class OPT(JST):
         self.csv_json=self.csv2json()
         self.config_json=json.dumps(self.config).encode()
         self.result_json=multi.Manager().dict()
-        
+
     def simu(self,index):#single simulation
         s_ind=index[0]#scenario index
         i_ind=index[1]#individual index
@@ -57,7 +65,6 @@ class OPT(JST):
 
     def multi_simu(self,ind):#multi-thread simulation
         time1=time.time()
-        print('------------------------------------------------')
         print('multi simu start, pooling')
         try:
             pool = multi.Pool(processes=self.thread)
@@ -121,7 +128,7 @@ class OPT(JST):
         print('checked result')
         return ind,ind2#index of dead
 
-    def evaluate(self):#objective function
+    def evaluate1(self):#objective function
         self.read_result_json()
         error=np.sum(abs(self.result-self.target),axis=1)#abs error
         print('evaluated')
@@ -141,126 +148,157 @@ class OPT(JST):
     def set_params(self,**params):
         #general parameter
         self.thread=params['thread_num']
-        self.maxiter=params['max_iter']
-        self.popsize1=params['pop_size']
         self.num=params['scenario_num']
+        self.mode=params['muilti_thread']
         self.load_constraint()
 
     def load_constraint(self):
         #initialize population
         maxmin=pd.read_csv(self.main_path+'range.csv')#bounds
-        self.high=np.array(maxmin['high'])
-        self.low=np.array(maxmin['low'])
+        self.high=np.array(maxmin['high']).astype(float)
+        self.low=np.array(maxmin['low']).astype(float)
         self.xrange=self.high-self.low
         self.dim=len(self.high)
-        self.bounds=np.concatenate([self.low.reshape(-1,1),self.high.reshape(-1,1)],axis=1)
-        self.sigma=1250
-        self.seed=0
-        self.pop1=np.random.uniform(low=self.low,high=self.high,size=self.dim)
         if not os.path.exists(self.main_path+'record\\'):
             os.mkdir(self.main_path+'record\\')
-
-        print('------------------------------------------------')
-        print('range-high:')
         print(self.high)
-        print('range-low:')
         print(self.low)
-        print('x num:',self.dim)
-        print('please ensure the range is correct')
+        weight=np.array(maxmin['valid']).ravel()
+        self.keyindex=np.where(weight>=0.01)[0]
+        self.initx=np.array(maxmin['init']).astype(float)
 
-    def load(self,file=''):#load population
-        if file=='':
-            pass
-        else:
-            self.pop1=np.mean(np.array(pd.read_csv(self.record_path+file,index_col=0)),axis=0)
+        self.n_var=len(self.keyindex)
+        self.xu=self.high[self.keyindex]
+        self.xl=self.low[self.keyindex]
+        self.n_obj=1
+        self.n_ieq_constr=0
 
-    def step(self):#one step
-        self.pop=[]
-        for _ in range(self.optimizer.population_size):
-            x = self.optimizer.ask()
-            self.pop.append(x)
-        self.pop=np.array(self.pop)
-        self.popsize=len(self.pop)
-        print('popsize:',self.pop.shape)
-        index=np.array([[i,j]for i in range(self.num) for j in range(self.popsize)])
-        self.multi_simu(index)
-        try:
-            self.eval=self.evaluate()
-        except Exception as e:
-            print('------------------------------------------------')
-            print('error:',e)
-            print('parents replaced dead offsprings')
-            ind,ind2=self.check_result()
-            self.pop[ind]=np.random.uniform(low=self.low,high=self.high,size=(len(ind),self.dim))
-            self.multi_simu(ind2)
-            self.eval=self.evaluate()
-        solutions = []
-        for i in range(self.popsize):
-            solutions.append((self.pop[i],self.eval[i]))
-        self.optimizer.tell(solutions)
-
-    def run(self):
-        start_time=time.time()
-        print('------------------------------------------------')
-        print('start opt-cmaes running')
         self.read_scenario()
         self.read_target()
-        print('------------------------------------------------')
-        print('start init No.0 generation ')
-        self.optimizer=SepCMA(mean=self.pop1,
-                            sigma=self.sigma,
-                            bounds=self.bounds,
-                            seed=self.seed,
-                            population_size=self.popsize1)
-        print('------------------------------------------------')
-        print('start evolve')
         self.best_eval=[]
         self.best_one=[]
         self.eval_record=[]
+        self.iter=0 if self.mode else -1
+        
+        self.bigx=[]
+        self.bigy=[]
+        self.bigz=[]
 
-        inc_popsize = 2
-        self.iter=0
-        for _ in range(self.maxiter):
+    def _evaluate(self, x, out, *args, **kwargs):
+        if self.mode:#multi-thread
             print('------------------------------------------------')
             print('now No.'+str(self.iter)+' generation')
-            self.step()
+            self.popsize=len(x)
+            self.pop=np.ones([self.popsize,self.dim])*self.initx
+            self.pop[:,self.keyindex]=x.copy()
+            print('popsize:',x.shape)
+            index=np.array([[i,j]for i in range(self.num) for j in range(self.popsize)])
+            self.multi_simu(index)
+            try:
+                self.eval=self.evaluate1()
+            except Exception as e:
+                print('------------------------------------------------')
+                print('error:',e)
+                print('parents replaced dead offsprings')
+                ind,ind2=self.check_result()
+                self.pop[ind]=np.random.uniform(low=self.low,high=self.high,size=(len(ind),self.dim))
+                self.multi_simu(ind2)
+                self.eval=self.evaluate1()
+            out["F"] = self.eval
             self.save()
             print('No.'+str(self.iter)+' best eval score:',np.min(self.eval))
-            if self.optimizer.should_stop():
-                self.seed += 1
-                np.random.seed(self.seed)
-                popsize = self.optimizer.population_size * inc_popsize
-                self.optimizer = SepCMA(
-                    mean=np.random.uniform(low=self.low,high=self.high,size=self.dim),
-                    sigma=self.sigma,
-                    bounds=self.bounds,
-                    seed=self.seed,
-                    population_size=popsize,
-                )
-                print("Restart CMA-ES with popsize={}".format(popsize))
             self.iter+=1
+            print('==================================================================================================')
+            print('n_gen  |  n_eval  |     f_avg     |     f_min     |     sigma     | min_std  | max_std  |   axis  ')
+            print('==================================================================================================')
+        else:
+            self.pop=x.copy()
+            self.popsize=len(self.pop)
+            index=np.array([[i,j]for i in range(self.num) for j in range(self.popsize)])
+            self.multi_simu(index)
+            try:
+                self.eval=self.evaluate1()
+            except Exception as e:
+                print('------------------------------------------------')
+                print('error:',e)
+                print('parents replaced dead offsprings')
+                ind,ind2=self.check_result()
+                self.pop[ind]=np.random.uniform(low=self.low,high=self.high,size=(len(ind),self.dim))
+                self.multi_simu(ind2)
+                self.eval=self.evaluate1()
+            out["F"] = self.eval
 
-        end_time=time.time()
-        print('------------------------------------------------')
-        print(str(self.maxiter)+' iters finished in time(s):',round(end_time - start_time,3))
-        print('opt-cmaes finished')
-        print('------------------------------------------------')
+            for i in range(len(x)):
+                self.bigx.append(x[i])
+                self.bigy.append(self.eval[i])
+            self.iter+=1
+            if self.iter%(self.popsize//2)==0:
+                iter=self.iter//(self.popsize//2)
+                pd.DataFrame(self.bigx).to_csv(self.record_path+'pop_'+str(iter)+'.csv',index=True)
+                self.bigz.append([np.argmin(self.bigy),np.min(self.bigy)])
+                info=pd.DataFrame(self.bigz)
+                info.columns=['best_one','best_eval']
+                info.to_csv(self.record_path+'pop_best.csv',index=True)
+                self.bigx=[]
+                self.bigy=[]
 
+    def _calc_pareto_front(self):
+        return 0
+
+    def _calc_pareto_set(self):
+        return np.full(self.n_var, 0)
+    
 if __name__ == '__main__':
-    a=OPT()
-    a.set_path('E:\\0-Work\\Data\\4-optm2\\')#end with \\
-    a.set_config(csv_list = {
+    start_time=time.time()
+    
+    print('opt start!')
+    problem=OPT()
+    problem.set_path('E:\\0-Work\\Data\\4-optm-compare\\')##end with \\
+    problem.set_config(csv_list = {
                             "BoilerList": "301.Boiler",
                             "TeesList": "304.TeeJoint",
                             "CrossList": "305.CrossJoint",
                             "PipeList": "306.Pipe",
                             "UserMList": "319.TerminalM"
                             })
-    a.set_params(
-                thread_num=20,
+    problem.set_params(
+                muilti_thread=True,#G3PCX-False
+                scenario_num=32,
                 scenario_num=1,
-                max_iter=9999,
-                pop_size=30,
                 )
-    # a.load('pop_0.csv')
-    a.run()
+    
+    # algorithm = G3PCX(pop_size=popsize)
+    algorithm = CMAES(x0=np.random.uniform(low=problem.low[problem.keyindex],high=problem.high[problem.keyindex],size=len(problem.keyindex)),
+                    sigma=0.25,
+                    tolfun=5000,
+                    # tolx=1,
+                    popsize=30,
+                    restarts=9,
+                    restart_from_best='False',
+                    bipop=True)
+    # algorithm = GA(
+                    # pop_size=500,
+                    # eliminate_duplicates=True)
+    # algorithm = NelderMead()
+    # algorithm = DE(
+    #     pop_size=500,
+    #     sampling=LHS(),
+    #     variant="DE/rand/1/bin",
+    #     CR=0.3,
+    #     dither="vector",
+    #     jitter=False
+    # )
+    # algorithm = PSO(
+    #                 pop_size=10,
+    #                 )
+
+    res = minimize(problem,
+                algorithm,
+                # ('n_gen', 9900),
+                seed=1,
+                verbose=True,
+                )
+    print("Best solution found: \nX = %s\nF = %s" % (res.X, res.F))
+    end_time=time.time()
+    print('------------------------------------------------')
+    print('All finished in time(s):',round(end_time - start_time,3))
