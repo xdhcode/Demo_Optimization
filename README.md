@@ -18,5 +18,9 @@ The data input and output of one specific network.
 + Search pipeline roughness using python library [cmaes](https://github.com/CyberAgentAILab/cmaes).
 + Decision variable: The roughness of each pipeline.
 + Objective function: The sum of absolute error of all pressure sensors of all scenarios.
+### [opt_PYMOOS.py](https://github.com/xdhcode/Public_Optimization/blob/main/opt_PYMOO.py)
++ Search pipeline roughness using python library [pymoo](https://pymoo.org/).
++ Decision variable: The roughness of each pipeline.
++ Objective function: The sum of absolute error of all pressure sensors of all scenarios.
 ### [sensitivematrix.py](https://github.com/xdhcode/optimization_library/blob/main/sensitivematrix.py)
 + Calculate the sensitive matrix of one network.
