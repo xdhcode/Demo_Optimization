@@ -8,7 +8,7 @@ import multiprocessing as multi
 import matplotlib.pyplot as plt
 from case_n1 import CASE
 '''
-NSGA-II
+NSGA-II algorithm is developed baesd on https://github.com/haris989/NSGA-II
 '''
 class OPT(CASE):
     def __init__(self):
