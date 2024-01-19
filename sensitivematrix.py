@@ -77,8 +77,8 @@ class SEN(JST):
         cat1=pd.DataFrame()
         cat2=pd.DataFrame()
         for i in range(self.num):
-            pipe=pd.read_csv(self.main_path+'netcsv_'+str(i+1)+'\\306.Pipe.csv',usecols=[3]).T
-            userp1=pd.read_csv(self.main_path+'netcsv_'+str(i+1)+'\\319.TerminalM.csv',usecols=[6]).T.reset_index(drop=True)
+            pipe=pd.read_csv(self.main_path+'netcsv_'+str(i+1)+'\\'+self.csv_list['PipeList']+'.csv',usecols=[3]).T
+            userp1=pd.read_csv(self.main_path+'netcsv_'+str(i+1)+'\\'+self.csv_list['UserMList']+'.csv',usecols=[6]).T.reset_index(drop=True)
             cat1=pd.concat([cat1,pipe],axis=0)
             cat2=pd.concat([cat2,userp1],axis=0)
         self.scenario1=cat1.values#2D array, scenario for each row
@@ -106,8 +106,8 @@ class SEN(JST):
         #read result
         cat=pd.DataFrame()
         for i in range(self.num):
-            userp1=pd.read_csv(self.main_path+'target_'+str(i+1)+'\\319.TerminalMResult.csv',usecols=[2]).T.reset_index(drop=True)
-            userp2=pd.read_csv(self.main_path+'target_'+str(i+1)+'\\319.TerminalMResult.csv',usecols=[6]).T.reset_index(drop=True)
+            userp1=pd.read_csv(self.main_path+'target_'+str(i+1)+'\\'+self.csv_list['UserMList']+'Result.csv',usecols=[2]).T.reset_index(drop=True)
+            userp2=pd.read_csv(self.main_path+'target_'+str(i+1)+'\\'+self.csv_list['UserMList']+'Result.csv',usecols=[6]).T.reset_index(drop=True)
             cat=pd.concat([cat,userp1,userp2],axis=1)
         self.target=cat.values#1D array
 

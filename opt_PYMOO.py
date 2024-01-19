@@ -92,9 +92,9 @@ class OPT(Problem,JST):
         cat1=pd.DataFrame()#heat station
         cat2=pd.DataFrame()#heat source
         for i in range(self.num):
-            userm=pd.read_csv(self.main_path+'netcsv_'+str(i+1)+'\\319.TerminalM.csv',usecols=[6]).T
+            userm=pd.read_csv(self.main_path+'netcsv_'+str(i+1)+'\\'+self.csv_list['UserMList']+'.csv',usecols=[6]).T
             cat1=pd.concat([cat1,userm],axis=0)
-            boilm=pd.read_csv(self.main_path+'netcsv_'+str(i+1)+'\\301.Boiler.csv',usecols=[6]).T
+            boilm=pd.read_csv(self.main_path+'netcsv_'+str(i+1)+'\\'+self.csv_list['BoilerList']+'.csv',usecols=[6]).T
             cat2=pd.concat([cat2,boilm],axis=0)
         self.scenario1=cat1.values#2D array, scenario for each row
         self.scenario2=cat2.values
@@ -102,8 +102,8 @@ class OPT(Problem,JST):
     def read_target(self):#read true values
         cat=pd.DataFrame()
         for i in range(self.num):
-            userp1=pd.read_csv(self.main_path+'target_'+str(i+1)+'\\319.TerminalMResult.csv',usecols=[2]).T.reset_index(drop=True)
-            userp2=pd.read_csv(self.main_path+'target_'+str(i+1)+'\\319.TerminalMResult.csv',usecols=[6]).T.reset_index(drop=True)
+            userp1=pd.read_csv(self.main_path+'target_'+str(i+1)+'\\'+self.csv_list['UserMList']+'Result.csv',usecols=[2]).T.reset_index(drop=True)
+            userp2=pd.read_csv(self.main_path+'target_'+str(i+1)+'\\'+self.csv_list['UserMList']+'Result.csv',usecols=[6]).T.reset_index(drop=True)
             cat=pd.concat([cat,userp1,userp2],axis=1)
         self.target=cat.values#1D array
     
