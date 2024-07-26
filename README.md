@@ -1,9 +1,8 @@
-# Public Optimization Code
 ## Purpose
 This project aims to find the **true** pipeline roughness of **large** district heating networks using heuristic optimization algorthims.
 ## File Introduction
 ### [json_tool.py](https://github.com/xdhcode/Public_Optimization/blob/main/json_tool.py)
-Parameter for calling hydraulic simulation software.
+Parameters for calling hydraulic simulation software.
 ### [case_n1.py](https://github.com/xdhcode/Public_Optimization/blob/main/case_n1.py)
 The data input and output of one specific network. 
 ### [opt_DE.py](https://github.com/xdhcode/Public_Optimization/blob/main/opt_DE.py)
